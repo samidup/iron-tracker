@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="IRON">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a0a0a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -124,8 +125,8 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
   background:var(--accent);color:#000;letter-spacing:.4px}
 .rb{background:var(--odim);border:1px solid rgba(255,140,0,.3);border-radius:var(--r);
   padding:18px;display:flex;flex-direction:column;gap:10px}
-.ssticky{position:sticky;bottom:calc(var(--navh) + var(--sb) + 12px);
-  padding:12px 0 0;background:linear-gradient(transparent,var(--bg) 40%);margin-top:12px;z-index:5}
+.ssticky{padding:16px;border-top:1px solid var(--border);background:var(--bg);
+  margin-top:8px}
 
 /* SESSION OVERLAY */
 #sov{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;flex-direction:column;
@@ -377,6 +378,44 @@ canvas.ch{width:100%;height:100%}
 @keyframes cel{0%{transform:scale(.5) rotate(-5deg);opacity:0}50%{transform:scale(1.1) rotate(2deg);opacity:1}100%{transform:scale(1);opacity:1}}
 .cel{animation:cel .5s ease forwards}
 #pwrap{display:flex;flex-direction:column;height:100%;overflow:hidden}
+
+/* ---- CALENDAR ---- */
+.calpg{padding:16px 12px;display:flex;flex-direction:column;gap:20px}
+.calhdr{display:flex;align-items:center;justify-content:space-between;padding:0 4px}
+.calmonth{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:1px;color:var(--text)}
+.calnavb{width:38px;height:38px;border-radius:50%;background:var(--card);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  font-size:20px;color:var(--muted);transition:all .1s;flex-shrink:0}
+.calnavb:active{transform:scale(.9);background:var(--card2)}
+.calgrid-wrap{background:var(--card);border-radius:var(--r);border:1px solid var(--border);
+  padding:14px 10px;overflow:hidden}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:0}
+.calhead{display:grid;grid-template-columns:repeat(7,1fr);gap:0;margin-bottom:8px}
+.calhead-cell{text-align:center;font-size:9px;font-weight:700;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--muted);padding:2px 0}
+.calday{
+  position:relative;
+  width:100%;
+  padding-top:100%;
+  border-radius:6px;
+}
+.calday-inner{
+  position:absolute;
+  inset:2px;
+  border-radius:5px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:500;
+  background:var(--bg);
+  color:var(--dim);
+}
+.calday.cur-month .calday-inner{color:var(--muted);background:var(--card2)}
+.calday.today .calday-inner{color:var(--text);font-weight:700;
+  border:1px solid var(--border2)}
+.calday.hassess .calday-inner{
+  background:var(--accent);color:#000;font-weight:800;
+  box-shadow:0 0 8px var(--aglow)}
+.calday.hassess.today .calday-inner{
+  box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent),0 0 12px var(--aglow)}
 </style>
 </head>
 <body>
@@ -396,9 +435,9 @@ canvas.ch{width:100%;height:100%}
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       <span>Historique</span>
     </button>
-    <button class="ni" id="ni-chrono" onclick="goNav('chrono')">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14.5 15.5"/><path d="M10 3h4M12 3v2"/></svg>
-      <span>Chrono</span>
+    <button class="ni" id="ni-calendar" onclick="goNav('calendar')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>Calendrier</span>
     </button>
     <button class="ni" id="ni-progress" onclick="goNav('progress')">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -534,11 +573,6 @@ var restRafId = null;
 var restActive = false;
 var swapTarget = null;
 var selSessIdx = null;
-var chronoStartTS = null;
-var chronoElapsed = 0;
-var chronoRafId = null;
-var chronoLaps = [];
-var chronoRunning = false;
 var progTab = 'body';
 var progScale = 'all';
 var progEx = null;
@@ -563,7 +597,7 @@ function getTodayInfo() {
 // =============================================
 // NAV
 // =============================================
-var TABS = ['home','history','chrono','progress','settings'];
+var TABS = ['home','history','calendar','progress','settings'];
 
 function goNav(page, dir) {
   if (page === curPage) return;
@@ -622,7 +656,7 @@ function updateNavUI(page) {
   });
 }
 
-var HDR_TITLES = { home:'IRON', history:'Historique', chrono:'Chronometre', progress:'Progres', settings:'Reglages' };
+var HDR_TITLES = { home:'IRON', history:'Historique', calendar:'Calendrier', progress:'Progres', settings:'Reglages' };
 
 function updateHdr(page) {
   document.getElementById('ht').textContent = HDR_TITLES[page] || 'IRON';
@@ -639,12 +673,12 @@ function renderPage(el, page) {
   el.className = 'page sA';
   if (page === 'home') el.innerHTML = buildHome();
   else if (page === 'history') el.innerHTML = buildHistory();
-  else if (page === 'chrono') buildChronoPage(el);
+  else if (page === 'calendar') buildCalendarPage(el);
   else if (page === 'progress') buildProgressPage(el);
   else if (page === 'settings') el.innerHTML = buildSettings();
   else el.innerHTML = buildHome();
   if (page === 'progress') setTimeout(function() { drawActiveChart(); }, 50);
-  if (page === 'chrono') setTimeout(function() { updateChronoDisp(); }, 50);
+  if (page === 'calendar') setTimeout(function() { renderCalendar(); }, 50);
 }
 
 // =============================================
@@ -732,28 +766,35 @@ function buildHome() {
       + '</div>';
   }
 
+  // Find which session was done most recently in history
+  var lastSessId = -1;
+  if (hist.length > 0) {
+    lastSessId = hist[hist.length - 1].sessionId;
+  }
+
   var ssHtml = '';
   PROG.forEach(function(s, i) {
-    var isToday = !info.isRest && i === info.sessionIdx;
+    var isLastDone = (i === lastSessId);
     var isSel = selSessIdx === i;
-    var cls = 'sso' + (isToday ? ' rec' : '') + (isSel ? ' sel' : '');
-    var right = isToday
-      ? '<span class="badge">AUJOURD\'HUI</span>'
-      : isSel ? '<span style="color:var(--accent);font-size:18px">&#10003;</span>'
-      : '<span style="color:var(--muted);font-size:20px">&#8250;</span>';
+    var cls = 'sso' + (isLastDone ? ' rec' : '') + (isSel ? ' sel' : '');
+    var right = isSel
+      ? '<span style="color:var(--accent);font-size:18px">&#10003;</span>'
+      : isLastDone
+        ? '<span class="badge">DERNIERE</span>'
+        : '<span style="color:var(--muted);font-size:20px">&#8250;</span>';
     ssHtml += '<div class="' + cls + '" onclick="selSess(' + i + ')">'
       + '<div><div class="sson">Seance ' + (i+1) + ' - ' + s.name + '</div>'
       + '<div class="ssom">' + s.exercises.length + ' exercices - ' + countSets(s) + ' series</div></div>'
       + right + '</div>';
   });
 
-  var btnLabel = selSessIdx !== null
-    ? 'Commencer - ' + PROG[selSessIdx].name.split('/')[0].trim()
-    : 'Choisir une seance';
-  var btnStyle = selSessIdx === null ? 'opacity:.4;pointer-events:none' : '';
-  var startBtn = '<div class="ssticky">'
-    + '<button class="btn btnp" style="' + btnStyle + '" onclick="startSession(' + selSessIdx + ')">'
-    + btnLabel + '</button></div>';
+  var startBtn = '';
+  if (selSessIdx !== null) {
+    startBtn = '<div class="ssticky">'
+      + '<button class="btn btnp" onclick="startSession(' + selSessIdx + ')">'
+      + 'Commencer - ' + PROG[selSessIdx].name.split('/')[0].trim()
+      + '</button></div>';
+  }
 
   return '<div class="pg gap stg">'
     + resumeHtml + todayHtml + statsHtml + lastHtml
@@ -840,107 +881,102 @@ function buildHistory() {
 }
 
 // =============================================
-// CHRONO PAGE
+// CALENDAR PAGE
 // =============================================
-function buildChronoPage(el) {
-  el.innerHTML = '<div class="chpg">'
-    + '<div class="chrng" id="chrng">'
-    + '<div class="chinn">'
-    + '<div class="chtime" id="chtime">00:00</div>'
-    + '<div class="chms" id="chms">.00</div>'
-    + '<div class="chlbl">CHRONOMETRE</div>'
-    + '</div></div>'
-    + '<div class="chbtns">'
-    + '<button class="cbrst" onclick="chronoReset()">&#8635;</button>'
-    + '<button class="cbmain ' + (chronoRunning ? 'run' : '') + '" id="chbtn" onclick="chronoToggle()">'
-    + (chronoRunning ? '&#9646;&#9646;' : '&#9654;') + '</button>'
-    + '<button class="cblap" onclick="chronoLap()">LAP</button>'
-    + '</div>'
-    + '<div class="lapslist" id="lapslist"></div>'
-    + '</div>';
-  renderLaps();
+var calYear = new Date().getFullYear();
+var calMonth = new Date().getMonth(); // 0-based
+
+function buildCalendarPage(el) {
+  el.innerHTML = '<div class="calpg" id="calpg"><div id="calinner"></div></div>';
+  renderCalendar();
 }
 
-function chronoToggle() {
-  if (chronoRunning) {
-    chronoElapsed += Date.now() - chronoStartTS;
-    chronoStartTS = null;
-    chronoRunning = false;
-    cancelAnimationFrame(chronoRafId);
-  } else {
-    chronoStartTS = Date.now();
-    chronoRunning = true;
-    runChronoF();
-  }
-  var btn = document.getElementById('chbtn');
-  if (btn) {
-    btn.innerHTML = chronoRunning ? '&#9646;&#9646;' : '&#9654;';
-    if (chronoRunning) btn.classList.add('run'); else btn.classList.remove('run');
-  }
-}
-
-function chronoReset() {
-  cancelAnimationFrame(chronoRafId);
-  chronoRunning = false; chronoStartTS = null; chronoElapsed = 0; chronoLaps = [];
-  var btn = document.getElementById('chbtn');
-  if (btn) { btn.innerHTML = '&#9654;'; btn.classList.remove('run'); }
-  updateChronoDisp(); renderLaps();
-}
-
-function chronoLap() {
-  if (!chronoRunning) return;
-  var total = chronoElapsed + (Date.now() - chronoStartTS);
-  var prev = 0;
-  chronoLaps.forEach(function(l) { prev += l.split; });
-  chronoLaps.unshift({ lap: chronoLaps.length + 1, split: total - prev, total: total });
-  renderLaps();
-}
-
-function runChronoF() {
-  updateChronoDisp();
-  if (chronoRunning) chronoRafId = requestAnimationFrame(runChronoF);
-}
-
-function updateChronoDisp() {
-  var total = (chronoRunning && chronoStartTS) ? (chronoElapsed + (Date.now() - chronoStartTS)) : chronoElapsed;
-  var ms = Math.floor((total % 1000) / 10);
-  var secs = Math.floor(total / 1000);
-  var h = Math.floor(secs / 3600);
-  var m = Math.floor((secs % 3600) / 60);
-  var s = secs % 60;
-  var tstr = (h > 0 ? h + ':' + pad(m) + ':' + pad(s) : pad(m) + ':' + pad(s));
-  var tel = document.getElementById('chtime');
-  var mel = document.getElementById('chms');
-  if (tel) tel.textContent = tstr;
-  if (mel) mel.textContent = '.' + pad(ms);
-  var ring = document.getElementById('chrng');
-  if (ring) {
-    var pct = (secs % 60) / 60;
-    ring.style.background = 'conic-gradient(var(--accent) ' + (pct*360) + 'deg, var(--card2) ' + (pct*360) + 'deg)';
-  }
-}
-
-function renderLaps() {
-  var el = document.getElementById('lapslist');
+function renderCalendar() {
+  var el = document.getElementById('calinner');
   if (!el) return;
-  if (!chronoLaps.length) { el.innerHTML = ''; return; }
-  var html = '';
-  chronoLaps.forEach(function(l) {
-    html += '<div class="laprow">'
-      + '<span class="lapn">Lap ' + l.lap + '</span>'
-      + '<span class="lapt">' + fmtMs(l.split) + '</span>'
-      + '<span class="laptot">' + fmtMs(l.total) + '</span>'
-      + '</div>';
+
+  var hist = lHist();
+  // Set of date strings that have sessions
+  var sessDates = {};
+  hist.forEach(function(s) { sessDates[s.date] = true; });
+
+  var MTHS_LONG = ['Janvier','Fevrier','Mars','Avril','Mai','Juin',
+    'Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];
+  var DAYS_SHORT = ['L','M','M','J','V','S','D'];
+
+  var today = new Date();
+  var todayStr = today.getFullYear() + '-' + pad(today.getMonth()+1) + '-' + pad(today.getDate());
+
+  // First weekday of month (Monday=0)
+  var firstDay = new Date(calYear, calMonth, 1);
+  var startDow = (firstDay.getDay() + 6) % 7;
+  var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  // Header row
+  var headHtml = '';
+  DAYS_SHORT.forEach(function(d) {
+    headHtml += '<div class="calhead-cell">' + d + '</div>';
   });
-  el.innerHTML = html;
+
+  // Grid cells
+  var cellsHtml = '';
+  // Leading empty cells
+  for (var b = 0; b < startDow; b++) {
+    cellsHtml += '<div class="calday"><div class="calday-inner"></div></div>';
+  }
+  // Day cells
+  for (var day = 1; day <= daysInMonth; day++) {
+    var dateStr = calYear + '-' + pad(calMonth + 1) + '-' + pad(day);
+    var isToday = (dateStr === todayStr);
+    var hasSess = !!sessDates[dateStr];
+    var cls = 'calday cur-month';
+    if (isToday) cls += ' today';
+    if (hasSess) cls += ' hassess';
+    cellsHtml += '<div class="' + cls + '"><div class="calday-inner">' + day + '</div></div>';
+  }
+  // Trailing cells to complete last row
+  var total = startDow + daysInMonth;
+  var trailing = (7 - (total % 7)) % 7;
+  for (var t = 0; t < trailing; t++) {
+    cellsHtml += '<div class="calday"><div class="calday-inner"></div></div>';
+  }
+
+  // Count sessions this month
+  var monthKey = calYear + '-' + pad(calMonth + 1);
+  var sessCount = 0;
+  Object.keys(sessDates).forEach(function(d) {
+    if (d.slice(0, 7) === monthKey) sessCount++;
+  });
+
+  el.innerHTML =
+    '<div class="calhdr">'
+    + '<button class="calnavb" onclick="calPrev()">&#8249;</button>'
+    + '<div class="calmonth">' + MTHS_LONG[calMonth] + ' ' + calYear + '</div>'
+    + '<button class="calnavb" onclick="calNext()">&#8250;</button>'
+    + '</div>'
+    + '<div class="calgrid-wrap">'
+    + '<div class="calhead">' + headHtml + '</div>'
+    + '<div class="calgrid">' + cellsHtml + '</div>'
+    + '</div>'
+    + (sessCount > 0
+      ? '<div style="text-align:center;font-size:12px;color:var(--muted);padding:4px 0">'
+        + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle"></span>'
+        + sessCount + ' seance' + (sessCount > 1 ? 's' : '') + ' ce mois'
+        + '</div>'
+      : '<div style="text-align:center;font-size:12px;color:var(--dim);padding:4px 0">Aucune seance ce mois</div>'
+    );
 }
 
-function fmtMs(ms) {
-  var s = Math.floor(ms / 1000);
-  var m = Math.floor(s / 60);
-  var r = s % 60;
-  var c = Math.floor((ms % 1000) / 10);
-  return pad(m) + ':' + pad(r) + '.' + pad(c);
+function calPrev() {
+  calMonth--;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+
+function calNext() {
+  calMonth++;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
 }
 
 // =============================================
@@ -1001,11 +1037,9 @@ function buildBWContent() {
   var scales = [['7j','7J'],['30j','30J'],['3m','3M'],['1an','1An'],['all','Tout']];
   return '<div class="bwcard">'
     + '<div class="lbl">Poids aujourd hui</div>'
-    + '<div class="bwrow">'
-    + '<button class="wb" style="width:36px;height:36px" onclick="adjBW(-0.5)">-</button>'
+    + '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:12px;margin-bottom:4px">'
     + '<input type="number" class="bwinp" id="bwinp" step="0.1" placeholder="75.0" value="' + (todayE ? todayE.weight : '') + '" onchange="saveBW(this.value)">'
     + '<span class="bwu">kg</span>'
-    + '<button class="wb" style="width:36px;height:36px" onclick="adjBW(0.5)">+</button>'
     + '</div>'
     + '<button class="btn btnp" style="margin-top:12px" onclick="saveBW(document.getElementById(\'bwinp\').value)">Enregistrer</button>'
     + stats + '</div>'
@@ -1036,12 +1070,6 @@ function saveBW(val) {
   if (inp) inp.value = w;
   drawBWChart();
   showToast(w + ' kg enregistre', 'succ');
-}
-
-function adjBW(d) {
-  var inp = document.getElementById('bwinp');
-  var cur = parseFloat(inp.value) || 70;
-  inp.value = Math.round((cur + d) * 10) / 10;
 }
 
 function drawBWChart() {
